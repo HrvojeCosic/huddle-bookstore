@@ -1,0 +1,10 @@
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/postgres
+    username: huddle
+    password: huddle
+  flyway:
+    url: jdbc:postgresql://localhost:5432/postgres
+    user: huddle
+    password: huddle
+
