@@ -1,13 +1,14 @@
 package com.huddle.huddlebookstore.model;
 
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.math.BigDecimal;
 
 @Getter
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "books")
 public class Book {
 
