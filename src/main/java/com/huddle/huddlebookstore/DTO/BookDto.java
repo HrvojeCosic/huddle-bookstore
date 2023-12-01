@@ -8,8 +8,9 @@ import java.math.BigDecimal;
 @Data
 public class BookDto {
 
-    private Integer count;
+    private Integer id;
     private String title;
+    private Integer count;
     private BookType type;
     private BigDecimal basePrice;
 }
