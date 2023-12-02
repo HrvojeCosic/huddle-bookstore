@@ -1,8 +1,11 @@
 package com.huddle.huddlebookstore.controller;
 
 import com.huddle.huddlebookstore.DTO.BookDto;
+import com.huddle.huddlebookstore.exception.ExceptionMessage;
 import com.huddle.huddlebookstore.model.Book;
+import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.service.BookService;
+import com.huddle.huddlebookstore.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,20 +25,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BookController {
 
-    private final BookService service;
-
+    private final BookService bookService;
+    private final CustomerService customerService;
     private final ModelMapper modelMapper;
 
     @GetMapping
     public Flux<BookDto> getAvailable() {
-        Flux<Book> books = service.findAvailable();
+        Flux<Book> books = bookService.findAvailable();
         return books.map(this::convertToDto);
     }
 
     @PostMapping("/buy/{customerId}")
     public Mono<BigDecimal> buy(@RequestBody List<Integer> bookIds,
                                 @PathVariable Integer customerId) {
-        return service.buy(bookIds, customerId);
+        return customerService.getLoyaltyPoints(customerId)
+                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Customer"))
+                .flatMap(points -> bookService.buy(bookIds, new Customer(customerId, points)));
     }
 
     public BookDto convertToDto(Book book) {

@@ -2,8 +2,10 @@ package com.huddle.huddlebookstore.service;
 
 import com.huddle.huddlebookstore.exception.ExceptionMessage;
 import com.huddle.huddlebookstore.model.Book;
+import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.repository.BookRepository;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
+import com.huddle.huddlebookstore.service.BookPriceDecorator.BookDiscountInfo;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.BookPurchaseInfo;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.BundleDecorator;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.LoyaltyPointsDecorator;
@@ -27,20 +29,31 @@ public class BookService {
         return bookRepository.findByCountGreaterThan(0);
     }
 
-    public Mono<BigDecimal> buy(List<Integer> bookIds, Integer customerId) {
-        Flux<Book> books = bookRepository.findAllById(bookIds)
-                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Books"));
+    public Mono<BigDecimal> buy(List<Integer> bookIds, Customer customer) {
+        final Flux<BigDecimal> priceFlux = bookRepository.findAllById(bookIds)
+                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Books"))
+                .flatMap(book -> {
+                    final BookPurchaseInfo basePurchaseInfo = new BookPurchaseInfo(book.getBasePrice(), book.getType());
+                    final BookDiscountInfo finalPurchaseInfo = getFinalPrice(basePurchaseInfo, customer.getLoyaltyPoints(), bookIds.size());
 
-        return books.flatMap(book -> {
-            BookPurchaseInfo basePrice = new BookPurchaseInfo(book.getBasePrice(), book.getType());
+                    if (finalPurchaseInfo.loyaltyPointsUsed()) {
+                        customerRepository.updateLoyaltyPoints(customer.getId(), customer.getLoyaltyPoints() - 10);
+                    }
 
-            LoyaltyPointsDecorator decoratedPrice = new LoyaltyPointsDecorator(
-                    new TypeDecorator(
-                            new BundleDecorator(basePrice, bookIds.size())
-                    )
-                    , customerRepository, customerId);
+                    return Flux.just(finalPurchaseInfo.discountedPrice());
+                });
 
-            return Mono.just(decoratedPrice.getPrice());
-        }).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return priceFlux.reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BookDiscountInfo getFinalPrice(BookPurchaseInfo basePurchaseInfo, int loyaltyPoints, int bundleSize) {
+        LoyaltyPointsDecorator decoratedPrice =
+                new LoyaltyPointsDecorator(
+                        new TypeDecorator(
+                                new BundleDecorator(basePurchaseInfo, bundleSize)
+                        ), loyaltyPoints
+                );
+
+        return new BookDiscountInfo(decoratedPrice.loyaltyPointsUsed(), decoratedPrice.getPrice());
     }
 }

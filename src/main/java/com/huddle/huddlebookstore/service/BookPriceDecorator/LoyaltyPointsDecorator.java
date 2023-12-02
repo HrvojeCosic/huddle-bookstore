@@ -1,43 +1,31 @@
 package com.huddle.huddlebookstore.service.BookPriceDecorator;
 
-import com.huddle.huddlebookstore.exception.ExceptionMessage;
-import com.huddle.huddlebookstore.model.BookType;
-import com.huddle.huddlebookstore.repository.CustomerRepository;
 import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategy;
 import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategyFactory;
-import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 
 public class LoyaltyPointsDecorator extends BaseBookPriceDecorator {
 
-    private final CustomerRepository customerRepository;
-    private final Integer customerId;
+    private final int customerPoints;
+    private final int pointDiscountThreshold = 10;
 
-    public LoyaltyPointsDecorator(IBookPurchaseInfo wrapped, CustomerRepository customerRepository, Integer customerId) {
+    public LoyaltyPointsDecorator(IBookPurchaseInfo wrapped, int customerPoints) {
         super(wrapped);
-        this.customerRepository = customerRepository;
-        this.customerId = customerId;
+        this.customerPoints = customerPoints;
     }
 
     @Override
     public BigDecimal getPrice() {
-        BigDecimal initialPrice = super.getPrice();
-        BookType bookType = super.getBookType();
+        if (customerPoints < pointDiscountThreshold) {
+            return super.getPrice();
+        } else {
+            BookTypeDiscountStrategy discountStrategy = BookTypeDiscountStrategyFactory.create(super.getBookType());
+            return super.getPrice().multiply(discountStrategy.getLoyaltyPointsDiscount());
+        }
+    }
 
-        return customerRepository.findLoyaltyPointsForCustomerId(customerId)
-                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Customer"))
-                .flatMap(points -> {
-                    final int pointDiscountThreshold = 10;
-
-                    if (points < pointDiscountThreshold) {
-                        return Mono.just(initialPrice);
-                    }
-
-                    BookTypeDiscountStrategy discountStrategy = BookTypeDiscountStrategyFactory.create(bookType);
-                    return customerRepository
-                            .updateLoyaltyPoints(customerId, 0)
-                            .thenReturn(initialPrice.multiply(discountStrategy.getLoyaltyPointsDiscount()));
-                }).block();
+    public boolean loyaltyPointsUsed() {
+        return customerPoints >= pointDiscountThreshold;
     }
 }
