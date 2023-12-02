@@ -1,5 +1,6 @@
 package com.huddle.huddlebookstore.service.BookPriceDecorator;
 
+import com.huddle.huddlebookstore.exception.ExceptionMessage;
 import com.huddle.huddlebookstore.model.BookType;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
 import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategy;
@@ -25,6 +26,7 @@ public class LoyaltyPointsDecorator extends BaseBookPriceDecorator {
         BookType bookType = super.getBookType();
 
         return customerRepository.findLoyaltyPointsForCustomerId(customerId)
+                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Customer"))
                 .flatMap(points -> {
                     final int pointDiscountThreshold = 10;
 

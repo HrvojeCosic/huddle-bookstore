@@ -1,5 +1,6 @@
 package com.huddle.huddlebookstore.service;
 
+import com.huddle.huddlebookstore.exception.ExceptionMessage;
 import com.huddle.huddlebookstore.model.Book;
 import com.huddle.huddlebookstore.repository.BookRepository;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
@@ -27,7 +28,8 @@ public class BookService {
     }
 
     public Mono<BigDecimal> buy(List<Integer> bookIds, Integer customerId) {
-        Flux<Book> books = bookRepository.findAllById(bookIds);
+        Flux<Book> books = bookRepository.findAllById(bookIds)
+                .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Books"));
 
         return books.flatMap(book -> {
             BookPurchaseInfo basePrice = new BookPurchaseInfo(book.getBasePrice(), book.getType());
