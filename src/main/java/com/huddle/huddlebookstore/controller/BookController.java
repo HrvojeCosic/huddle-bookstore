@@ -6,6 +6,7 @@ import com.huddle.huddlebookstore.model.Book;
 import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.service.BookService;
 import com.huddle.huddlebookstore.service.CustomerService;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,7 +37,7 @@ public class BookController {
     }
 
     @PostMapping("/buy/{customerId}")
-    public Mono<BigDecimal> buy(@RequestBody List<Integer> bookIds,
+    public Mono<BigDecimal> buy(@RequestBody @NotEmpty List<Integer> bookIds,
                                 @PathVariable Integer customerId) {
         return customerService.getLoyaltyPoints(customerId)
                 .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Customer"))
