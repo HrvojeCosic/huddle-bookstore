@@ -5,6 +5,8 @@ import com.huddle.huddlebookstore.repository.BookRepository;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
 import com.huddle.huddlebookstore.util.BookCreator;
 import com.huddle.huddlebookstore.util.CustomerCreator;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,12 +18,19 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.blockhound.BlockHound;
+import reactor.blockhound.BlockingOperationError;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -43,6 +52,11 @@ public class BookControllerTestIT {
     private final int customerId = 1;
     private final int invalidCustomerId = -1;
 
+    @BeforeAll
+    public static void blockHoundSetup() {
+        BlockHound.install();
+    }
+
     @BeforeEach
     public void setUp() {
         BDDMockito.when(bookRepositoryMock.findByCountGreaterThan(0))
@@ -62,6 +76,22 @@ public class BookControllerTestIT {
 
         BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(invalidCustomerId))
                 .thenReturn(Mono.empty());
+    }
+
+    @Test
+    public void blockHoundWorks() throws TimeoutException, InterruptedException {
+        try {
+            FutureTask<?> task = new FutureTask<Object>(() -> {
+                Thread.sleep(0);
+                return "";
+            });
+            Schedulers.parallel().schedule(task);
+
+            task.get(10, TimeUnit.SECONDS);
+            Assertions.fail("should fail");
+        } catch (ExecutionException e) {
+            Assertions.assertTrue(e.getCause() instanceof BlockingOperationError);
+        }
     }
 
     @Test
