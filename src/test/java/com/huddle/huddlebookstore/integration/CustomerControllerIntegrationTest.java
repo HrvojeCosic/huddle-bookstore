@@ -27,7 +27,7 @@ import java.util.concurrent.TimeoutException;
 @ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureWebTestClient
-class CustomerControllerTestIT {
+class CustomerControllerIntegrationTest {
 
     @Autowired
     private WebTestClient webTestClient;
