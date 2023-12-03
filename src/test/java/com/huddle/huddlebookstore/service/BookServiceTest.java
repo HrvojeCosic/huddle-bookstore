@@ -1,9 +1,12 @@
 package com.huddle.huddlebookstore.service;
 
 import com.huddle.huddlebookstore.model.Book;
+import com.huddle.huddlebookstore.model.BookType;
 import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.repository.BookRepository;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
+import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategy;
+import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategyFactory;
 import com.huddle.huddlebookstore.util.BookCreator;
 import com.huddle.huddlebookstore.util.CustomerCreator;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.BDDMockito;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -37,20 +41,17 @@ public class BookServiceTest {
     private final Customer customer = CustomerCreator.createCustomerWithNoPoints();
     private final List<Integer> bookIds = Arrays.asList(1, 2);
 
-@BeforeEach
-public void setUp() {
-    BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(customer.getId()))
-            .thenReturn(Mono.just(0));
+    @BeforeEach
+    public void setUp() {
+        BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(customer.getId()))
+                .thenReturn(Mono.just(0));
 
-    BDDMockito.when(customerRepository.updateLoyaltyPoints(customer.getId(), 0))
-            .thenReturn(Flux.just().then());
+        BDDMockito.when(bookRepositoryMock.findByCountGreaterThan(0))
+                .thenReturn(Flux.just(book));
 
-    BDDMockito.when(bookRepositoryMock.findByCountGreaterThan(0))
-            .thenReturn(Flux.just(book));
-
-    BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
-            .thenReturn(Flux.just(book));
-}
+        BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
+                .thenReturn(Flux.just(book));
+    }
 
     @Test
     public void findAvailable_ReturnsFluxBook_WhenSuccessful() {
@@ -61,11 +62,16 @@ public void setUp() {
     }
 
     @Test
-    public void buy_Returns0_WhenCustomerHasEnoughPointsForFreeBook() {
-        StepVerifier.create(bookService.buy(bookIds, CustomerCreator.createCustomerWith10Points()))
+    public void buy_ReturnsZeroAndDeductsLoyaltyPoints_WhenCustomerHasEnoughPointsForFreeBook() {
+        Customer customer = CustomerCreator.createCustomerWith10Points();
+
+        StepVerifier.create(bookService.buy(bookIds, customer))
                 .expectSubscription()
                 .expectNextMatches(value -> value.compareTo(BigDecimal.ZERO) == 0)
                 .verifyComplete();
+
+        BDDMockito.verify(customerRepository, Mockito.times(1))
+                .deductLoyaltyPoints(customer.getId(), 10);
     }
 
     @Test
@@ -85,10 +91,64 @@ public void setUp() {
     }
 
     @Test
-    public void buy_ReturnsFullPrice_WhenCustomerDoesntHaveEnoughPointsForFreeBook() {
+    public void buy_ReturnsDiscountedPrice_WhenCustomerBuysOldEditionBook() {
+        Book oldEditionBook = BookCreator.createOldEditionBook();
+
+        BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
+                .thenReturn(Flux.just(oldEditionBook));
+
+        BigDecimal oldBookDiscount = BookTypeDiscountStrategyFactory.create(BookType.OLD_EDITION).getBaseDiscount();
+        assert oldBookDiscount.compareTo(BigDecimal.ZERO) > 0;
+        BigDecimal expectedPrice = oldEditionBook
+                .getBasePrice()
+                .multiply(oldBookDiscount);
+
+        StepVerifier.create(bookService.buy(bookIds, customer))
+                .expectSubscription()
+                .expectNext(expectedPrice)
+                .verifyComplete();
+    }
+
+    @Test
+    public void buy_ReturnsDiscountedPrice_WhenBundleDiscountApplies() {
+        List<Integer> bookIds = Arrays.asList(1, 2, 3);
+
+        List<Book> books = Arrays.asList(
+                BookCreator.createOldEditionBook(),
+                BookCreator.createNewReleaseBook(),
+                BookCreator.createRegularBook());
+
+        Flux<Book> bookFlux = Flux.fromIterable(books);
+
+        BigDecimal expectedPrice = books.stream()
+                .map(book -> {
+                    BookTypeDiscountStrategy strategy = BookTypeDiscountStrategyFactory.create(book.getType());
+                    return book.getBasePrice()
+                            .multiply(strategy.getBundleDiscount())
+                            .multiply(strategy.getBaseDiscount());
+                })
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
+                .thenReturn(bookFlux);
+
+        StepVerifier.create(bookService.buy(bookIds, customer))
+                .expectSubscription()
+                .expectNext(expectedPrice)
+                .verifyComplete();
+    }
+
+    @Test
+    public void buy_AddsLoyaltyPointAndReturnsFullPrice_WhenCustomerDoesntMeetAnyDiscountConditions() {
         StepVerifier.create(bookService.buy(bookIds, customer))
                 .expectSubscription()
                 .expectNext(book.getBasePrice())
                 .verifyComplete();
+
+        BDDMockito.verify(customerRepository, Mockito.times(1))
+                .addLoyaltyPoints(customer.getId(), 1);
+
+        BDDMockito.verify(customerRepository, Mockito.times(0))
+                .deductLoyaltyPoints(customer.getId(), 10);
     }
 }

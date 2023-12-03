@@ -26,4 +26,14 @@ public class BookCreator {
                 .basePrice(BigDecimal.valueOf(199.99))
                 .build();
     }
+
+    public static Book createOldEditionBook() {
+        return Book.builder()
+                .id(2)
+                .count(40)
+                .title("D.D.I.A")
+                .type(BookType.OLD_EDITION)
+                .basePrice(BigDecimal.valueOf(19))
+                .build();
+    }
 }
