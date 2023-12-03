@@ -1,14 +1,15 @@
 package com.huddle.huddlebookstore.service.BookPriceDecorator;
 
-import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategy;
 import com.huddle.huddlebookstore.service.BookTypeStrategy.BookTypeDiscountStrategyFactory;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 
 public class LoyaltyPointsDecorator extends BaseBookPriceDecorator {
 
     private final int customerPoints;
     private final int pointDiscountThreshold = 10;
+    private boolean loyaltyPointsUsed = false;
 
     public LoyaltyPointsDecorator(IBookPurchaseInfo wrapped, int customerPoints) {
         super(wrapped);
@@ -17,15 +18,20 @@ public class LoyaltyPointsDecorator extends BaseBookPriceDecorator {
 
     @Override
     public BigDecimal getPrice() {
-        if (customerPoints < pointDiscountThreshold) {
+        BigDecimal discount = BookTypeDiscountStrategyFactory
+                .create(super.getBookType())
+                .getLoyaltyPointsDiscount();
+
+        boolean discountAvailable = !Objects.equals(discount, BigDecimal.ONE);
+        if (customerPoints < pointDiscountThreshold || !discountAvailable) {
             return super.getPrice();
         } else {
-            BookTypeDiscountStrategy discountStrategy = BookTypeDiscountStrategyFactory.create(super.getBookType());
-            return super.getPrice().multiply(discountStrategy.getLoyaltyPointsDiscount());
+            loyaltyPointsUsed = true;
+            return super.getPrice().multiply(discount);
         }
     }
 
     public boolean loyaltyPointsUsed() {
-        return customerPoints >= pointDiscountThreshold;
+        return loyaltyPointsUsed;
     }
 }

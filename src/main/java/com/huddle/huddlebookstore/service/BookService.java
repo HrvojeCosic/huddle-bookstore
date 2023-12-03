@@ -37,9 +37,7 @@ public class BookService {
                 .flatMap(book -> {
                     BookPurchaseInfo basePurchaseInfo = new BookPurchaseInfo(book.getBasePrice(), book.getType());
                     BookDiscountInfo finalPurchaseInfo = getFinalPrice(basePurchaseInfo, customer.getLoyaltyPoints(), bookIds.size());
-
-                    updateCustomerLoyaltyPoints(finalPurchaseInfo, customer.getId());
-
+                    updateCustomerLoyaltyPoints(finalPurchaseInfo, customer);
                     return Flux.just(finalPurchaseInfo.discountedPrice());
                 });
 
@@ -54,14 +52,16 @@ public class BookService {
                         ), loyaltyPoints
                 );
 
-        return new BookDiscountInfo(decoratedPrice.loyaltyPointsUsed(), decoratedPrice.getPrice());
+        return new BookDiscountInfo(decoratedPrice.getPrice(), decoratedPrice.loyaltyPointsUsed());
     }
 
-    private void updateCustomerLoyaltyPoints(BookDiscountInfo discountInfo, int customerId) {
+    private void updateCustomerLoyaltyPoints(BookDiscountInfo discountInfo, Customer customer) {
         if (discountInfo.loyaltyPointsUsed()) {
-            customerRepository.deductLoyaltyPoints(customerId, 10);
+            customerRepository.deductLoyaltyPoints(customer.getId(), 10);
+            customer.setLoyaltyPoints(customer.getLoyaltyPoints() - 10);
         }
 
-        customerRepository.addLoyaltyPoints(customerId, 1);
+        customerRepository.addLoyaltyPoints(customer.getId(), 1);
+        customer.setLoyaltyPoints(customer.getLoyaltyPoints() + 1);
     }
 }
