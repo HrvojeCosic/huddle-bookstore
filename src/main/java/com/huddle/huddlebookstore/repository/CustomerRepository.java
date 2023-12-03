@@ -13,6 +13,9 @@ public interface CustomerRepository extends ReactiveCrudRepository<Customer, Int
     Mono<Integer> findLoyaltyPointsForCustomerId(@Param("customerId") Integer customerId);
 
     @Modifying
-    @Query("UPDATE customers SET loyalty_points = :loyaltyPoints WHERE id = :customerId")
-    Mono<Void> updateLoyaltyPoints(@Param("customerId") Integer customerId, @Param("loyaltyPoints") Integer loyaltyPoints);
-}
+    @Query("UPDATE customers SET loyalty_points = loyalty_points - :points WHERE id = :customerId")
+    void deductLoyaltyPoints(@Param("customerId") Integer customerId, @Param("points") Integer points);
+
+    @Modifying
+    @Query("UPDATE customers SET loyalty_points = loyalty_points + :points WHERE id = :customerId")
+    void addLoyaltyPoints(@Param("customerId") Integer customerId, @Param("points") Integer points);}

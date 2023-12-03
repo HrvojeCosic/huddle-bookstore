@@ -12,6 +12,7 @@ import com.huddle.huddlebookstore.service.BookPriceDecorator.LoyaltyPointsDecora
 import com.huddle.huddlebookstore.service.BookPriceDecorator.TypeDecorator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -29,16 +30,15 @@ public class BookService {
         return bookRepository.findByCountGreaterThan(0);
     }
 
+    @Transactional
     public Mono<BigDecimal> buy(List<Integer> bookIds, Customer customer) {
-        final Flux<BigDecimal> priceFlux = bookRepository.findAllById(bookIds)
+        Flux<BigDecimal> priceFlux = bookRepository.findAllById(bookIds)
                 .switchIfEmpty(ExceptionMessage.getMonoResponseStatusNotFoundException("Books"))
                 .flatMap(book -> {
-                    final BookPurchaseInfo basePurchaseInfo = new BookPurchaseInfo(book.getBasePrice(), book.getType());
-                    final BookDiscountInfo finalPurchaseInfo = getFinalPrice(basePurchaseInfo, customer.getLoyaltyPoints(), bookIds.size());
+                    BookPurchaseInfo basePurchaseInfo = new BookPurchaseInfo(book.getBasePrice(), book.getType());
+                    BookDiscountInfo finalPurchaseInfo = getFinalPrice(basePurchaseInfo, customer.getLoyaltyPoints(), bookIds.size());
 
-                    if (finalPurchaseInfo.loyaltyPointsUsed()) {
-                        customerRepository.updateLoyaltyPoints(customer.getId(), customer.getLoyaltyPoints() - 10);
-                    }
+                    updateCustomerLoyaltyPoints(finalPurchaseInfo, customer.getId());
 
                     return Flux.just(finalPurchaseInfo.discountedPrice());
                 });
@@ -55,5 +55,13 @@ public class BookService {
                 );
 
         return new BookDiscountInfo(decoratedPrice.loyaltyPointsUsed(), decoratedPrice.getPrice());
+    }
+
+    private void updateCustomerLoyaltyPoints(BookDiscountInfo discountInfo, int customerId) {
+        if (discountInfo.loyaltyPointsUsed()) {
+            customerRepository.deductLoyaltyPoints(customerId, 10);
+        }
+
+        customerRepository.addLoyaltyPoints(customerId, 1);
     }
 }
