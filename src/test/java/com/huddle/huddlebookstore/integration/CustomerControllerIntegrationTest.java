@@ -46,10 +46,10 @@ class CustomerControllerIntegrationTest {
 
     @BeforeEach
     public void setUp() {
-        BDDMockito.when(customerRepositoryMock.findLoyaltyPointsForCustomerId(invalidCustomerId))
+        BDDMockito.when(customerRepositoryMock.findLoyaltyPointsById(invalidCustomerId))
                 .thenReturn(Mono.empty());
 
-        BDDMockito.when(customerRepositoryMock.findLoyaltyPointsForCustomerId(customerId))
+        BDDMockito.when(customerRepositoryMock.findLoyaltyPointsById(customerId))
                 .thenReturn(Mono.just(mockCustomerPoints));
     }
 

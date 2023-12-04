@@ -4,7 +4,6 @@ import com.huddle.huddlebookstore.exception.ExceptionMessage;
 import com.huddle.huddlebookstore.model.Book;
 import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.repository.BookRepository;
-import com.huddle.huddlebookstore.repository.CustomerRepository;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.BookDiscountInfo;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.BookPurchaseInfo;
 import com.huddle.huddlebookstore.service.BookPriceDecorator.BundleDecorator;
@@ -24,7 +23,7 @@ import java.util.List;
 public class BookService {
 
     private final BookRepository bookRepository;
-    private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
 
     public Flux<Book> findAvailable() {
         return bookRepository.findByCountGreaterThan(0);
@@ -37,8 +36,8 @@ public class BookService {
                 .flatMap(book -> {
                     BookPurchaseInfo basePurchaseInfo = new BookPurchaseInfo(book.getBasePrice(), book.getType());
                     BookDiscountInfo finalPurchaseInfo = getFinalPrice(basePurchaseInfo, customer.getLoyaltyPoints(), bookIds.size());
-                    updateCustomerLoyaltyPoints(finalPurchaseInfo, customer);
-                    return Flux.just(finalPurchaseInfo.discountedPrice());
+                    return updateCustomerLoyaltyPoints(finalPurchaseInfo, customer)
+                            .thenMany(Flux.just(finalPurchaseInfo.discountedPrice()));
                 });
 
         return priceFlux.reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -55,13 +54,12 @@ public class BookService {
         return new BookDiscountInfo(decoratedPrice.getPrice(), decoratedPrice.loyaltyPointsUsed());
     }
 
-    private void updateCustomerLoyaltyPoints(BookDiscountInfo discountInfo, Customer customer) {
+    private Mono<Void> updateCustomerLoyaltyPoints(BookDiscountInfo discountInfo, Customer customer) {
         if (discountInfo.loyaltyPointsUsed()) {
-            customerRepository.deductLoyaltyPoints(customer.getId(), 10);
             customer.setLoyaltyPoints(customer.getLoyaltyPoints() - 10);
         }
 
-        customerRepository.addLoyaltyPoints(customer.getId(), 1);
         customer.setLoyaltyPoints(customer.getLoyaltyPoints() + 1);
+        return customerService.update(customer);
     }
 }

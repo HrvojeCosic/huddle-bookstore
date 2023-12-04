@@ -1,8 +1,10 @@
 package com.huddle.huddlebookstore.integration;
 
 import com.huddle.huddlebookstore.model.Book;
+import com.huddle.huddlebookstore.model.Customer;
 import com.huddle.huddlebookstore.repository.BookRepository;
 import com.huddle.huddlebookstore.repository.CustomerRepository;
+import com.huddle.huddlebookstore.service.CustomerService;
 import com.huddle.huddlebookstore.util.BookCreator;
 import com.huddle.huddlebookstore.util.CustomerCreator;
 import org.junit.jupiter.api.Assertions;
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.BDDMockito;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.AutoConfigureWebTestClient;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -46,6 +49,9 @@ public class BookControllerIntegrationTest {
     @MockBean
     private CustomerRepository customerRepository;
 
+    @MockBean
+    private CustomerService customerServiceMock;
+
     private final Flux<Book> bookFlux = Flux.just(BookCreator.createRegularBook(), BookCreator.createRegularBook());
     private final List<Integer> bookIds = Arrays.asList(1, 2);
     private final List<Integer> invalidBookIds = Arrays.asList(-1, -2);
@@ -71,10 +77,22 @@ public class BookControllerIntegrationTest {
         BDDMockito.when(customerRepository.findById(customerId))
                 .thenReturn(Mono.just(CustomerCreator.createCustomerWithNoPoints()));
 
-        BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(customerId))
+        BDDMockito.when(customerRepository.findLoyaltyPointsById(customerId))
                 .thenReturn(Mono.just(0));
 
-        BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(invalidCustomerId))
+        BDDMockito.when(customerRepository.findLoyaltyPointsById(invalidCustomerId))
+                .thenReturn(Mono.empty());
+
+        BDDMockito.when(customerServiceMock.update(Mockito.any(Customer.class)))
+                .thenReturn(Mono.empty());
+
+        BDDMockito.when(customerServiceMock.update(Mockito.any(Customer.class)))
+                .thenReturn(Mono.empty());
+
+        BDDMockito.when(customerServiceMock.getLoyaltyPoints(customerId))
+                .thenReturn(Mono.just(10));
+
+        BDDMockito.when(customerServiceMock.getLoyaltyPoints(invalidCustomerId))
                 .thenReturn(Mono.empty());
     }
 

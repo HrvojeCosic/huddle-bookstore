@@ -41,6 +41,9 @@ public class BookServiceTest {
     private BookService bookService;
 
     @Mock
+    private CustomerService customerServiceMock;
+
+    @Mock
     private BookRepository bookRepositoryMock;
 
     @Mock
@@ -57,7 +60,7 @@ public class BookServiceTest {
 
     @BeforeEach
     public void setUp() {
-        BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(customer.getId()))
+        BDDMockito.when(customerRepository.findLoyaltyPointsById(customer.getId()))
                 .thenReturn(Mono.just(0));
 
         BDDMockito.when(bookRepositoryMock.findByCountGreaterThan(0))
@@ -65,6 +68,9 @@ public class BookServiceTest {
 
         BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
                 .thenReturn(Flux.just(book));
+
+        BDDMockito.when(customerServiceMock.update(Mockito.any(Customer.class)))
+                .thenReturn(Mono.empty());
     }
 
     @Test
@@ -100,15 +106,15 @@ public class BookServiceTest {
                 .expectNextMatches(value -> value.compareTo(BigDecimal.ZERO) == 0)
                 .verifyComplete();
 
-        BDDMockito.verify(customerRepository, Mockito.times(1))
-                .deductLoyaltyPoints(customer.getId(), 10);
+        BDDMockito.verify(customerServiceMock, Mockito.times(1))
+                .update(customer);
     }
 
     @Test
     public void buy_ReturnsFullPrice_WhenCustomerHasEnoughPointsForFreeBookButBookIsNewRelease() {
         Book newReleaseBook = BookCreator.createNewReleaseBook();
 
-        BDDMockito.when(customerRepository.findLoyaltyPointsForCustomerId(customer.getId()))
+        BDDMockito.when(customerRepository.findLoyaltyPointsById(customer.getId()))
                 .thenReturn(Mono.just(10));
 
         BDDMockito.when(bookRepositoryMock.findAllById(bookIds))
@@ -175,10 +181,7 @@ public class BookServiceTest {
                 .expectNext(book.getBasePrice())
                 .verifyComplete();
 
-        BDDMockito.verify(customerRepository, Mockito.times(1))
-                .addLoyaltyPoints(customer.getId(), 1);
-
-        BDDMockito.verify(customerRepository, Mockito.times(0))
-                .deductLoyaltyPoints(customer.getId(), 10);
+        BDDMockito.verify(customerServiceMock, Mockito.times(1))
+                .update(customer);
     }
 }
